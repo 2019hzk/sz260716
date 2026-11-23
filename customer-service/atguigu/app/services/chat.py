@@ -10,6 +10,7 @@ from sqlalchemy import select
 from atguigu.app.models.enums import MessageRole, ConversationMode, TurnStatus
 from atguigu.app.models.models import Message, Conversation, ConversationTurn
 from atguigu.app.schemas import ChatMessageRequest
+from atguigu.app.services.realtime import RealTimeService
 from atguigu.common.utils import get_utcnow, get_uid
 from atguigu.common.settings import get_settings
 
@@ -19,6 +20,7 @@ class ChatService:
     def __init__(self, session: AsyncSession):
         self._session = session
         self._settings = get_settings()
+        self._realtime_service = RealTimeService(session)
 
     async def get_chat_history(self, user_id: str) -> dict[str, Any]:
         """
@@ -52,12 +54,12 @@ class ChatService:
         ]
 
         # 3. 获取当前用户活跃会话的ID和模式
-        active_conversation=await self._get_or_create_conversation(user_id)
+        active_conversation = await self._get_or_create_conversation(user_id)
 
         # 4. 返回接口需要的数据结构
         return {
             "conversation_id": active_conversation.id,
-            "conversation_mode": active_conversation.mode,
+            "conversation_mode": active_conversation.mode,  # 保证用户端右上角的徽章模式初始的时候状态更新
             "messages": messages
         }
 
@@ -97,8 +99,11 @@ class ChatService:
             # AI_Worker处理的：交给AI 智能体处理（调用AI-Service接口，结果在获取到，判断是否插话，如果插话，修改轮次状态。如果没插话，存储结果）
             await self._create_turn(conversation.id)
         else:
-            # 交给人工客服处理
-            pass
+            # 会话模式要不是QUEUED[等待人工客服]/HUMAN【人工客服服务中】
+            # 交给人工客服处理---链路很长(点击看工单、接入工单、回复工单、结束工单)
+            # 发送一个能够让前端调用查询工单项的接口信号。（为了后续真正处理工单的条件）ws
+
+            self._realtime_service.add_events(message,conversation,notify_staff=True)
 
         # 5. 统一提交
         await self._session.commit()
