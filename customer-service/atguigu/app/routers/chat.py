@@ -17,4 +17,3 @@ async def process_chat_endpoint(payload: ChatMessageRequest,
                                 user_role: UserRoleDep
                                 ):
     await service.process_chat_message(payload, user_role.user_id)
-    return {""}
