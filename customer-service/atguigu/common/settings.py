@@ -25,6 +25,9 @@ class Settings(BaseSettings):
          "http://127.0.0.1:5173",
          "http://localhost:5174",
          "http://127.0.0.1:5174"], description="跨域允许的源")
+
+    conversation_idle_timeout_minutes: int = Field(30, description="AI模式下会话的有效时间")
+    message_merge_delay_ms: int = Field(30, description="AI模式下消息的防抖时间窗口阈值")
     # 变量名字必须叫model_config
     model_config = SettingsConfigDict(env_file=ENV_FILE_PATH, extra="ignore")
 
