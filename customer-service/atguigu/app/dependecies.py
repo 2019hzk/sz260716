@@ -7,7 +7,7 @@ from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, Header
 
-from atguigu.app.schams import CurrentUser
+from atguigu.app.schemas import CurrentUser
 from atguigu.app.services.auth import authorized_user
 from atguigu.app.services.chat import ChatService
 from atguigu.infrastructure.db import get_async_session

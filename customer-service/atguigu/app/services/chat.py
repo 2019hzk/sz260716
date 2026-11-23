@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from atguigu.app.models.enums import MessageRole, ConversationMode, TurnStatus
 from atguigu.app.models.models import Message, Conversation, ConversationTurn
-from atguigu.app.schams import ChatMessageRequest
+from atguigu.app.schemas import ChatMessageRequest
 from atguigu.common.utils import get_utcnow, get_uid
 from atguigu.common.settings import get_settings
 
@@ -107,10 +107,13 @@ class ChatService:
             ConversationTurn.conversation_id == conversation_id,
             ConversationTurn.status == TurnStatus.COLLECTING
         )
-
+        # 2. 查询轮次
         turn = await  self._session.scalar(stmt)
+
+        # 3. 创建新收集状态的轮次
         if turn is None:
             turn = ConversationTurn(conversation_id=conversation_id,status=TurnStatus.COLLECTING,collect_until=get_utcnow()+timedelta(self._settings.message_merge_delay_ms))
             self._session.add(turn)
 
+        # 4. 返回收集状态的轮次
         return  turn

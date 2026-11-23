@@ -4,7 +4,7 @@
 import jwt
 from fastapi import HTTPException, status
 
-from atguigu.app.schams import CurrentUser
+from atguigu.app.schemas import CurrentUser
 from atguigu.common.settings import get_settings
 
 
@@ -19,7 +19,7 @@ def authorized_user(authorization: str | None, *require_role: str) -> CurrentUse
     """
 
     # 1、判断用户认证信息是否携带了
-    if not authorization or authorization.startswith("Bearer "):
+    if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户身份认证失败")
 
     # 2. 获取令牌
