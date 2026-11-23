@@ -6,18 +6,18 @@ from datetime import timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from atguigu.app.models.enums import MessageRole, ConversationMode
-from atguigu.app.models.models import Message, Conversation
+from atguigu.app.models.enums import MessageRole, ConversationMode, TurnStatus
+from atguigu.app.models.models import Message, Conversation, ConversationTurn
 from atguigu.app.schams import ChatMessageRequest
 from atguigu.common.utils import get_utcnow, get_uid
-from atguigu.common.settings import  get_settings
+from atguigu.common.settings import get_settings
 
 
 class ChatService:
 
     def __init__(self, session: AsyncSession):
         self._session = session
-        self._settings= get_settings()
+        self._settings = get_settings()
 
     async def process_chat_message(self, payload: ChatMessageRequest, user_id: str):
         """
@@ -52,8 +52,8 @@ class ChatService:
 
         # 4. 根据会话模式分流
         if conversation.mode == ConversationMode.AI:
-            # 交给AI 智能体处理
-            pass
+            # AI_Worker处理的：交给AI 智能体处理（调用AI-Service接口，结果在获取到，判断是否插话，如果插话，修改轮次状态。如果没插话，存储结果）
+            await self._create_turn(conversation.id)
         else:
             # 交给人工客服处理
             pass
@@ -81,16 +81,36 @@ class ChatService:
         # 2. 存在有效的会话
         if conversation:
             # a. 判断当前会话是否依然有效(AI模式&&比较时间)
-            timeout= timedelta(minutes=self._settings.conversation_idle_timeout_minutes)
-            if  conversation.mode==ConversationMode.AI and get_utcnow()-conversation.last_active_at>=timeout:
-                conversation.mode=ConversationMode.CLOSED   # 当前的会话模式修改为非活跃状态
+            timeout = timedelta(minutes=self._settings.conversation_idle_timeout_minutes)
+            if conversation.mode == ConversationMode.AI and get_utcnow() - conversation.last_active_at >= timeout:
+                conversation.mode = ConversationMode.CLOSED  # 当前的会话模式修改为非活跃状态
             # b.   当前会话是有效的，直接返回
             else:
-                return  conversation
+                return conversation
 
         # 3. 创建一个活跃的会话对象
-        conversation = Conversation(id=get_uid("con"),user_id=user_id,mode=ConversationMode.AI)   # id:单独给一次值
+        conversation = Conversation(id=get_uid("con"), user_id=user_id, mode=ConversationMode.AI)  # id:单独给一次值
         self._session.add(conversation)
 
         # 4. 返回活跃的会话
         return conversation
+
+    async def _create_turn(self, conversation_id: str) -> ConversationTurn:
+        """
+        职责：创建COLLECTING待收集状态的轮次
+        :param conversation_id:
+        :return:
+        """
+        # 1. 查询待收集状态的轮次
+        # 1.1 定义SQL语句
+        stmt = select(ConversationTurn).where(
+            ConversationTurn.conversation_id == conversation_id,
+            ConversationTurn.status == TurnStatus.COLLECTING
+        )
+
+        turn = await  self._session.scalar(stmt)
+        if turn is None:
+            turn = ConversationTurn(conversation_id=conversation_id,status=TurnStatus.COLLECTING,collect_until=get_utcnow()+timedelta(self._settings.message_merge_delay_ms))
+            self._session.add(turn)
+
+        return  turn
