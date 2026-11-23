@@ -2,6 +2,7 @@
 服务组件(处理逻辑)
 """
 from datetime import timedelta
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -18,6 +19,47 @@ class ChatService:
     def __init__(self, session: AsyncSession):
         self._session = session
         self._settings = get_settings()
+
+    async def get_chat_history(self, user_id: str) -> dict[str, Any]:
+        """
+        职责: 返回当前用户下所有会话的消息
+        :param user_id:
+        :return:
+        dict[str,Any]:存储三部分信息
+        "messages":[当前用户所有会话下的消息]
+        "conversation_id": 当前用户活跃会话的ID
+        "conversation_mode":当前用户活跃会话的模式
+        """
+        # 1. 查询当前用户所有会话下的[消息]
+        # 1.1 构建SQL语句
+        stmt = (select(Message)
+                .join(Conversation, Conversation.id == Message.conversation_id)
+                .where(
+            Conversation.user_id == user_id
+        ).order_by(Message.id))
+
+        # 1.2 执行SQL语句
+        records = (await  self._session.scalars(stmt)).all()
+
+        # 2. 构建当前用户所有会话下的消息列表
+        messages = [
+            {
+                "conversation_id": record.conversation_id,  # 每一条消息对应的会话ID(即有活跃的会话ID 也会有已经关闭的会话ID)
+                "role": record.role,  # 每一条消息的角色(USER/AI/HUMAN)
+                "content": record.content  # 每一天消息的内容(用户发送的内容、AI的回复、人工客服的回复)
+            }
+            for record in records
+        ]
+
+        # 3. 获取当前用户活跃会话的ID和模式
+        active_conversation=await self._get_or_create_conversation(user_id)
+
+        # 4. 返回接口需要的数据结构
+        return {
+            "conversation_id": active_conversation.id,
+            "conversation_mode": active_conversation.mode,
+            "messages": messages
+        }
 
     async def process_chat_message(self, payload: ChatMessageRequest, user_id: str):
         """
@@ -112,8 +154,9 @@ class ChatService:
 
         # 3. 创建新收集状态的轮次
         if turn is None:
-            turn = ConversationTurn(conversation_id=conversation_id,status=TurnStatus.COLLECTING,collect_until=get_utcnow()+timedelta(self._settings.message_merge_delay_ms))
+            turn = ConversationTurn(conversation_id=conversation_id, status=TurnStatus.COLLECTING,
+                                    collect_until=get_utcnow() + timedelta(self._settings.message_merge_delay_ms))
             self._session.add(turn)
 
         # 4. 返回收集状态的轮次
-        return  turn
+        return turn
