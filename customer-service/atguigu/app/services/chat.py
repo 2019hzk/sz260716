@@ -168,7 +168,7 @@ class ChatService:
         return turn
 
     # ============================================处理轮次的方法逻辑=============================================
-    async def claim_turn_build_payload(self) -> tuple[ConversationTurn, dict[str, Any]] | None:
+    async def claim_turn_build_payload(self) -> tuple[ConversationTurn, dict[str, Any], str] | None:
         """
         职责： 领取满足条件的轮次以及构建调用AI Service服务的请求载荷数据
         :return:
@@ -187,16 +187,26 @@ class ChatService:
         if claimed_turn is None:
             return None
 
-        # 2. 修改领取到轮次的信息
-        # 2.1 修改轮次的状态
-        claimed_turn.status = TurnStatus.RUNNING
-        # 2.2 修改轮次的领取次数
-        claimed_turn.attempts += 1
-        # 2.3 修改轮次的快照消息ID（作用：1.确定轮次消息范围的下限  2.判断用户插话的条件）
-        claimed_turn.snapshot_message_id = await self._get_latest_user_message_id(claimed_turn.conversation_id)
+        # 2. 查询当前轮次对应的会话对象
+        conversation = await self._session.scalar(
+            select(Conversation).where(Conversation.id == claimed_turn.conversation_id))
 
-        # 3. 构建AI Service请求的载荷数据
+        # 3. 修改领取到轮次的信息
+        # 3.1 修改轮次的状态
+        claimed_turn.status = TurnStatus.RUNNING
+        # 3.2 修改轮次的领取次数
+        claimed_turn.attempts += 1
+        # 3.3 修改轮次的快照消息ID（作用：1.确定轮次消息范围的下限  2.判断用户插话的条件）
+        claimed_turn.snapshot_message_id = await self._get_latest_user_message_id(str(conversation.id))
+
+        # 4. 构建AI Service请求的载荷数据
         payload: dict[str, Any] = await self.build_request_payload(claimed_turn)
+
+        # 5. 内部单独提交(TODO)  # 结论：释放锁
+        await self._session.commit()
+
+        # 6. 返回
+        return claimed_turn, payload, str(conversation.user_id)
 
     async def _get_latest_user_message_id(self, conversation_id: str) -> int:
         """

@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from atguigu.app.models.models import ConversationTurn
+from atguigu.app.services.auth import encode_access_token
 from atguigu.app.services.chat import ChatService
 from atguigu.common.settings import get_settings
 from atguigu.infrastructure.db import AsyncSessionFactory
@@ -54,9 +55,28 @@ class AIWorker:
             claimed_turn, payload = claimed_turn_payload
 
             # 4. 调用AI Service
-            ai_result = await self._call_ai_service(payload)
+            ai_result, error = await self._call_ai_service(payload)
 
             # 5. 处理AI Service结果、以及修改轮次的终态
             await chat_service.finish_turn()
 
             return True
+
+    async def _call_ai_service(self, payload: dict[str, Any]) -> tuple[dict[str, Any] | None, Exception | None]:
+        """
+        职责：调用AI Service
+        携带两部分的认证信息：
+        1. 用户身份的令牌，确保AI Service推理任务的时候，锁定用户
+        2. 服务之间调用认证令牌。确保服务调用可信
+        :param payload:
+        :return:
+        """
+
+        # 1. 构建访问令牌
+        access_token = encode_access_token()
+
+        # 2. 构建请求头数据
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "X-Internal-Service-Token": self._settings.internal_service_token,
+        }
