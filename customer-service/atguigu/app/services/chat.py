@@ -316,8 +316,15 @@ class ChatService:
         if error is not None:
             # a) 重试耗尽,主动触发转人工
             if claimed_turn.attempts >= self._settings.ai_worker_max_attempts:
+                # a.1) 修改轮次状态
                 claimed_turn.status = TurnStatus.FAILED
-                # 转人工（TODO）
+                # a.2) 转人工
+                self._admin_service.create_handoffs(conversation,
+                                                    summary="AI 服务多次调用异常，系统自动降级转接人工客服")
+                # a.3) 修改当前会话模式(会话没有变)
+                conversation.mode = ConversationMode.QUEUED
+                self.save_ai_reply(conversation, {"text": "当前智能助手正忙，已自动为您转接人工客服处理，请稍候。"})
+
             # b) 重试未耗尽，继续重试
             else:
                 claimed_turn.status = TurnStatus.COLLECTING
@@ -334,14 +341,14 @@ class ChatService:
         if ai_result['reply_type'] == "REQUEST_HANDOFF":
             # 打通转人工，初始化工单表即可
             # a) 初始化工单表
-            self._admin_service.create_handoffs()
+            self._admin_service.create_handoffs(conversation, summary=ai_result['summary'])
             # b) 修改当前会话模式(会话没有变)
             conversation.mode = ConversationMode.QUEUED
+
         # 4.2 业务回复
-        else:
-            # a) AI 回复存储到messages表（对内事实依据---单独刷新出来）
-            # b) AI 回复存储到realtime_events表（对外事实推送给前端）
-            self.save_ai_reply(conversation, ai_result)
+        # a) AI 回复存储到messages表（对内事实依据---单独刷新出来）
+        # b) AI 回复存储到realtime_events表（对外事实推送给前端）
+        self.save_ai_reply(conversation, ai_result)
 
         # 统一提交
         await self._session.commit()
@@ -351,6 +358,8 @@ class ChatService:
                       ai_result: dict[str, Any]):
         """
         职责：保存AI 回复，推送AI 回复
+        如果是业务回答内容，推送给用户端即可，目的为了让用户看到业务结果。右上角徽章不用变
+        如果是转人工请求，既要推送给用户端【内容区域看到转人工请求成功/右上角区域看到徽章变化】，还要推送给客服端【让客服前端调用刷新handoffs列表接口，查询出来用户的工单项】
         :param conversation:
         :param ai_result:
         :return:
@@ -369,4 +378,5 @@ class ChatService:
         conversation.last_active_at = get_utcnow()
 
         # 3. 保存ai回复到realtime_events表
-        self._realtime_service.add_events(message, conversation, notify_user=True)
+        self._realtime_service.add_events(message, conversation, notify_user=True,
+                                          notify_staff=conversation.mode == ConversationMode.QUEUED)
