@@ -51,5 +51,19 @@ def decode_access_token(access_token: str) -> CurrentUser:
 def encode_access_token(user_id: str) -> str:
     """
     职责：生成用户令牌
+    三部分：
+    1. 载荷
+    2. 加密秘钥
+    3. 加密算法
     :return:
     """
+
+    # 1. 构建载荷
+    payload = {
+        "user_id": user_id,
+        "role": "user"
+    }
+
+    access_token = jwt.encode(payload, key=get_settings().jwt_secret, algorithm=get_settings().jwt_algorithm)
+
+    return access_token

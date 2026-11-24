@@ -3,6 +3,7 @@
 """
 import asyncio
 import logging
+import  httpx
 from typing import Any
 
 from atguigu.app.models.models import ConversationTurn
@@ -52,31 +53,55 @@ class AIWorker:
                 return False
 
             # 3. 解包claimed_turn_payload--->tuple[claimed_turn,payload]
-            claimed_turn, payload = claimed_turn_payload
+            claimed_turn, payload, user_id = claimed_turn_payload
 
             # 4. 调用AI Service
-            ai_result, error = await self._call_ai_service(payload)
+            ai_result, error = await self._call_ai_service(payload, user_id)
 
             # 5. 处理AI Service结果、以及修改轮次的终态
-            await chat_service.finish_turn()
+            await chat_service.finish_turn(ai_result,error)
 
             return True
 
-    async def _call_ai_service(self, payload: dict[str, Any]) -> tuple[dict[str, Any] | None, Exception | None]:
+    async def _call_ai_service(self,
+                               payload: dict[str, Any],
+                               user_id: str
+                               ) -> tuple[dict[str, Any] | None, Exception | None]:
         """
         职责：调用AI Service
         携带两部分的认证信息：
         1. 用户身份的令牌，确保AI Service推理任务的时候，锁定用户
         2. 服务之间调用认证令牌。确保服务调用可信
         :param payload:
+        :param user_id:
         :return:
         """
 
         # 1. 构建访问令牌
-        access_token = encode_access_token()
+        access_token = encode_access_token(user_id)
 
         # 2. 构建请求头数据
         headers = {
             "Authorization": f"Bearer {access_token}",
             "X-Internal-Service-Token": self._settings.internal_service_token,
         }
+
+
+        # 3. 获取http客户端，发送请求 获取响应(粘贴)
+
+        # c) 构建超时
+        timeout = httpx.Timeout(self._settings.ai_timeout_seconds, connect=3)
+
+        # d) 发送请求
+        try:
+            async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+                response = await client.post(
+                    f"{self._settings.ai_service_url}/internal/v1/agent/runs",
+                    headers=headers,
+                    json=payload,
+                )
+                response.raise_for_status()
+                return response.json(), None
+        except Exception as exc:
+            logger.exception("会话 %s 调用 AI Service 失败: %s", payload["conversation_id"], exc)
+            return None, exc
