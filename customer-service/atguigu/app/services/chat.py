@@ -56,6 +56,7 @@ class ChatService:
         # 3. 获取当前用户活跃会话的ID和模式
         active_conversation = await self._get_or_create_conversation(user_id)
 
+        await  self._session.commit()   #   fix 提交
         # 4. 返回接口需要的数据结构
         return {
             "conversation_id": active_conversation.id,
@@ -103,7 +104,7 @@ class ChatService:
             # 交给人工客服处理---链路很长(点击看工单、接入工单、回复工单、结束工单)
             # 发送一个能够让前端调用查询工单项的接口信号。（为了后续真正处理工单的条件）ws
 
-            self._realtime_service.add_events(message,conversation,notify_staff=True)
+            self._realtime_service.add_events(message, conversation, notify_staff=True)
 
         # 5. 统一提交
         await self._session.commit()
