@@ -46,8 +46,7 @@ class AIWorker:
             chat_service = ChatService(session)
 
             # 2. 领取轮次并且组装AI Service请求的载荷数据
-            claimed_turn_payload: tuple[ConversationTurn, dict[
-                str, Any]] | None = await chat_service.claim_turn_build_payload()
+            claimed_turn_payload = await chat_service.claim_turn_build_payload()
             if claimed_turn_payload is None:
                 return False
 

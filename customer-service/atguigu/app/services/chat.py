@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from atguigu.app.models.enums import MessageRole, ConversationMode, TurnStatus
 from atguigu.app.models.models import Message, Conversation, ConversationTurn
@@ -56,7 +56,7 @@ class ChatService:
         # 3. 获取当前用户活跃会话的ID和模式
         active_conversation = await self._get_or_create_conversation(user_id)
 
-        await  self._session.commit()   #   fix 提交
+        await  self._session.commit()  # fix 提交
         # 4. 返回接口需要的数据结构
         return {
             "conversation_id": active_conversation.id,
@@ -166,3 +166,106 @@ class ChatService:
 
         # 4. 返回收集状态的轮次
         return turn
+
+    # ============================================处理轮次的方法逻辑=============================================
+    async def claim_turn_build_payload(self) -> tuple[ConversationTurn, dict[str, Any]] | None:
+        """
+        职责： 领取满足条件的轮次以及构建调用AI Service服务的请求载荷数据
+        :return:
+        """
+        # 1. 领取满足条件的轮次(条件一：轮次的状态是COLLECTING && 条件二：轮次的收集时间到期)
+        # 1.1 构建领取满足轮次的SQL
+        stmt = select(ConversationTurn).where(
+            ConversationTurn.status == TurnStatus.COLLECTING,
+            ConversationTurn.collect_until <= get_utcnow()
+        ).order_by(ConversationTurn.created_at)
+
+        # 1.2 执行SQL语句
+        claimed_turn = await self._session.scalar(stmt)
+
+        # 1.3 未领取到轮次
+        if claimed_turn is None:
+            return None
+
+        # 2. 修改领取到轮次的信息
+        # 2.1 修改轮次的状态
+        claimed_turn.status = TurnStatus.RUNNING
+        # 2.2 修改轮次的领取次数
+        claimed_turn.attempts += 1
+        # 2.3 修改轮次的快照消息ID（作用：1.确定轮次消息范围的下限  2.判断用户插话的条件）
+        claimed_turn.snapshot_message_id = await self._get_latest_user_message_id(claimed_turn.conversation_id)
+
+        # 3. 构建AI Service请求的载荷数据
+        payload: dict[str, Any] = await self.build_request_payload(claimed_turn)
+
+    async def _get_latest_user_message_id(self, conversation_id: str) -> int:
+        """
+        职责：获取消息表中当前轮次对应的会话下最新用户角色的消息ID
+        :param conversation_id:
+        :return:
+        """
+        stmt = select(func.max(Message.id)).where(
+            Message.conversation_id == conversation_id,
+            Message.role == MessageRole.USER,
+        )
+        return await self._session.scalar(stmt)
+
+    async def build_request_payload(self, claimed_turn: ConversationTurn) -> dict[str, Any]:
+        """
+        职责：构建AI Service请求的载荷数据
+        :param claimed_turn:
+        :return:
+        {
+         "conversation_id":"",
+         "message":[],
+         "history":[]
+        }
+        """
+        # 1. 查询当前轮次的消息（消息归属轮次，在真正调用ai-service请求的时候，才确定）
+
+        # 1.1 确定当前轮次的上限(找上一轮的回复消息的最大ID,上一轮消息下限)
+        # a) 构建SQL语句
+        stmt = select(func.max(Message.id)).where(
+            Message.conversation_id == claimed_turn.conversation_id,
+            Message.role != MessageRole.USER
+        )
+        latest_no_user_message_id = await self._session.scalar(stmt) or 0  # 第一轮来的时候
+        # 1.2 确定当前轮次的下限(快照消息ID)
+        latest_user_message_id = claimed_turn.snapshot_message_id
+
+        # 1.3 构建当前轮次的消息归属的SQL语句
+        turn_stmt = select(Message).where(Message.conversation_id == claimed_turn.conversation_id,
+                                          Message.id > latest_no_user_message_id,
+                                          Message.id <= latest_user_message_id
+                                          ).order_by(Message.id)
+
+        # 1.4 执行当前轮次的消息归属的SQL语句
+        turn_messages = (await self._session.scalars(turn_stmt)).all()
+
+        # 2. 查询历史消息作为上下文供LLM推理当前用户任务参考信息
+        history_stmt = select(Message).where(
+            Message.conversation_id == claimed_turn.conversation_id,
+            Message.id < turn_messages[0].id
+        ).order_by(Message.id.desc()).limit(30)
+
+        history_messages = reversed((await self._session.scalars(history_stmt)).all())
+
+        # 3. 返回请求载荷的数据
+        return {
+            "conversation_id": claimed_turn.conversation_id,
+            "message": [
+                {
+                    "content": turn_message.content,
+                    "type": turn_message.message_type
+                }
+                for turn_message in turn_messages
+            ],
+            "history": [
+                {
+                    "content": history_message.content,
+                    "type": history_message.message_type,
+                    "role": history_message.role
+                }
+                for history_message in history_messages
+            ]
+        }
