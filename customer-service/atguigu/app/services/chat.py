@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from atguigu.app.models.enums import MessageRole, ConversationMode, TurnStatus
-from atguigu.app.models.models import Message, Conversation, ConversationTurn
+from atguigu.app.models.models import Message, Conversation, ConversationTurn, RealtimeEvent
 from atguigu.app.schemas import ChatMessageRequest
 from atguigu.app.services.admin import AdminService
 from atguigu.app.services.realtime import RealTimeService
@@ -336,6 +336,37 @@ class ChatService:
             # a) 初始化工单表
             self._admin_service.create_handoffs()
             # b) 修改当前会话模式(会话没有变)
-            conversation.mode=ConversationMode.QUEUED
+            conversation.mode = ConversationMode.QUEUED
+        # 4.2 业务回复
+        else:
+            # a) AI 回复存储到messages表（对内事实依据---单独刷新出来）
+            # b) AI 回复存储到realtime_events表（对外事实推送给前端）
+            self.save_ai_reply(conversation, ai_result)
 
+        # 统一提交
+        await self._session.commit()
 
+    def save_ai_reply(self,
+                      conversation: Conversation,
+                      ai_result: dict[str, Any]):
+        """
+        职责：保存AI 回复，推送AI 回复
+        :param conversation:
+        :param ai_result:
+        :return:
+        """
+        # 1. 保存ai回复到messages表
+        message = Message(
+            message_id=get_uid("msg"),
+            conversation_id=conversation.id,
+            role=MessageRole.AI,
+            message_type="text",
+            content=ai_result
+        )
+        self._session.add(message)
+
+        # 2. 修改会话的激活时间
+        conversation.last_active_at = get_utcnow()
+
+        # 3. 保存ai回复到realtime_events表
+        self._realtime_service.add_events(message, conversation, notify_user=True)
