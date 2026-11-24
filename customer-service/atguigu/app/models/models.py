@@ -5,7 +5,7 @@ from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, Uniqu
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from atguigu.app.models.enums import ConversationMode, TurnStatus
+from atguigu.app.models.enums import ConversationMode, TurnStatus, HandoffStatus
 from atguigu.common.utils import get_uid, get_utcnow
 
 
@@ -61,9 +61,6 @@ class ConversationTurn(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=get_utcnow)
 
 
-
-
-
 class RealtimeEvent(Base):
     """等待实时推送 Worker 发布的实时消息事件。为了持久化"""
 
@@ -75,4 +72,22 @@ class RealtimeEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=get_utcnow)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
+
+class Handoff(Base):
+    """记录一次人工客服工单及其处理状态。"""
+
+    __tablename__ = "handoffs"
+    __table_args__ = (
+        Index("uq_open_handoff_per_conversation", "conversation_id", unique=True,
+              postgresql_where=text("status IN ('WAITING', 'ACTIVE')")),
+    )
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True, default=lambda: get_uid("handoff"))
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String(40), index=True)
+    summary: Mapped[str] = mapped_column(Text)  # 客服侧看
+    status: Mapped[str] = mapped_column(String(20), default=HandoffStatus.WAITING,
+                                        index=True)  # 工单状态3种（WAITING：未被客服领取 ACTIVE:客服领取走 RESOLVE:工单被关闭）
+    staff_id: Mapped[str | None] = mapped_column(String(40), index=True) # 客服ID 领走【接单】之后才会更新
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=get_utcnow)
 

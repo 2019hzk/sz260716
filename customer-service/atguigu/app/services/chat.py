@@ -314,15 +314,26 @@ class ChatService:
         if error is not None:
             # a) 重试耗尽,主动触发转人工
             if claimed_turn.attempts >= self._settings.ai_worker_max_attempts:
-                pass
-
-
+                claimed_turn.status = TurnStatus.FAILED
+                # 转人工（TODO）
             # b) 重试未耗尽，继续重试
             else:
                 claimed_turn.status = TurnStatus.COLLECTING
                 claimed_turn.collect_until = get_utcnow() + timedelta(
                     seconds=self._settings.ai_worker_retry_delay_seconds)  # 减少无用的AI Service调用。
-                # b.1) 提交
-                await  self._session.commit()
-                # b.2) 结束
-                return
+
+            # 3.2) 提交
+            await  self._session.commit()
+            # 3.3) 结束
+            return
+
+        # 4. 保存AI Service推理后的结果(转人工请求，业务回复)
+        # 4.1 转人工的请求
+        if ai_result['reply_type']== "REQUEST_HANDOFF":
+            # 打通转人工，初始化工单表即可
+            pass
+
+
+
+
+
