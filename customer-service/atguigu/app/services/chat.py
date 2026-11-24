@@ -303,7 +303,7 @@ class ChatService:
             select(Conversation).where(Conversation.id == claimed_turn.conversation_id))
 
         # 2. 用户插话(维度一:这个轮次是否能用)
-        if claimed_turn.snapshot_message_id != self._get_latest_user_message_id(str(conversation.id)):
+        if claimed_turn.snapshot_message_id != await self._get_latest_user_message_id(str(conversation.id)):
             # a) 修改当前轮次的状态为终态SUPERSEDED(修改轮次状态为过期，改轮次对应的消息，后续依然能够被新轮次拿走，之前任务没有丢)
             claimed_turn.status = TurnStatus.SUPERSEDED
             # b) 提交
