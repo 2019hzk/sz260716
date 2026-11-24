@@ -163,7 +163,8 @@ class ChatService:
         # 3. 创建新收集状态的轮次
         if turn is None:
             turn = ConversationTurn(conversation_id=conversation_id, status=TurnStatus.COLLECTING,
-                                    collect_until=get_utcnow() + timedelta(milliseconds=self._settings.message_merge_delay_ms))
+                                    collect_until=get_utcnow() + timedelta(
+                                        milliseconds=self._settings.message_merge_delay_ms))
             self._session.add(turn)
 
         # 4. 返回收集状态的轮次
@@ -336,6 +337,8 @@ class ChatService:
             # 3.3) 结束
             return
 
+
+        claimed_turn.status = TurnStatus.COMPLETED
         # 4. 保存AI Service推理后的结果(转人工请求，业务回复)
         # 4.1 转人工的请求
         if ai_result['reply_type'] == "REQUEST_HANDOFF":
