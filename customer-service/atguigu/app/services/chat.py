@@ -279,3 +279,50 @@ class ChatService:
                 for history_message in history_messages
             ]
         }
+
+    async def finish_turn(self,
+                          claimed_turn: ConversationTurn,
+                          ai_result: dict[str, Any] | None,
+                          error: Exception | None):
+        """
+        职责：结算轮次
+        1. 修改轮次状态(COMPLETED/SUPERSEDED/FAILED)--终态
+        2. 判断用户是否插话，如果插话，不会存储AI Service结果
+        3. 如果没有插话，需要保存AI Service结果
+        4. AI Service是否调用成功，如果没有成功，需要重试，重试次数达到，主动触发转接人工.
+        :param claimed_turn:
+        :param ai_result:
+        :param error:
+        :return:
+        """
+
+        # 1. 根据当前轮次查询对应的会话
+        conversation = await  self._session.scalar(
+            select(Conversation).where(Conversation.id == claimed_turn.conversation_id))
+
+        # 2. 用户插话(维度一:这个轮次是否能用)
+        if claimed_turn.snapshot_message_id != self._get_latest_user_message_id(str(conversation.id)):
+            # a) 修改当前轮次的状态为终态SUPERSEDED(修改轮次状态为过期，改轮次对应的消息，后续依然能够被新轮次拿走，之前任务没有丢)
+            claimed_turn.status = TurnStatus.SUPERSEDED
+            # b) 提交
+            await  self._session.commit()
+            # c) 结束
+            return
+
+        # 3. 维度二：这个轮次改如何使用(重试、保存回复结果)
+        # 3.1 customer-service调用ai-service失败
+        if error is not None:
+            # a) 重试耗尽,主动触发转人工
+            if claimed_turn.attempts >= self._settings.ai_worker_max_attempts:
+                pass
+
+
+            # b) 重试未耗尽，继续重试
+            else:
+                claimed_turn.status = TurnStatus.COLLECTING
+                claimed_turn.collect_until = get_utcnow() + timedelta(
+                    seconds=self._settings.ai_worker_retry_delay_seconds)  # 减少无用的AI Service调用。
+                # b.1) 提交
+                await  self._session.commit()
+                # b.2) 结束
+                return

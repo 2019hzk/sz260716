@@ -59,7 +59,7 @@ class AIWorker:
             ai_result, error = await self._call_ai_service(payload, user_id)
 
             # 5. 处理AI Service结果、以及修改轮次的终态
-            await chat_service.finish_turn(ai_result,error)
+            await chat_service.finish_turn(claimed_turn,ai_result,error)
 
             return True
 
