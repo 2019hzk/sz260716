@@ -6,9 +6,9 @@ class ConversationMode(StrEnum):
     会话模式：4种
     """
     AI = "AI"
-    QUEUED = "QUEUED"
-    HUMAN = "HUMAN"
-    CLOSED = "CLOSED"
+    QUEUED = "QUEUED"   # 等待人工
+    HUMAN = "HUMAN"     # 人工接收工单
+    CLOSED = "CLOSED"   # 主动因为超时时间到了，修改【创建会话的时候。messages/history接口】
 
 
 class MessageRole(StrEnum):

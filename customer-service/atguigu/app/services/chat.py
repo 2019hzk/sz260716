@@ -10,6 +10,7 @@ from sqlalchemy import select, func
 from atguigu.app.models.enums import MessageRole, ConversationMode, TurnStatus
 from atguigu.app.models.models import Message, Conversation, ConversationTurn
 from atguigu.app.schemas import ChatMessageRequest
+from atguigu.app.services.admin import AdminService
 from atguigu.app.services.realtime import RealTimeService
 from atguigu.common.utils import get_utcnow, get_uid
 from atguigu.common.settings import get_settings
@@ -21,6 +22,7 @@ class ChatService:
         self._session = session
         self._settings = get_settings()
         self._realtime_service = RealTimeService(session)
+        self._admin_service = AdminService(session)
 
     async def get_chat_history(self, user_id: str) -> dict[str, Any]:
         """
@@ -329,11 +331,11 @@ class ChatService:
 
         # 4. 保存AI Service推理后的结果(转人工请求，业务回复)
         # 4.1 转人工的请求
-        if ai_result['reply_type']== "REQUEST_HANDOFF":
+        if ai_result['reply_type'] == "REQUEST_HANDOFF":
             # 打通转人工，初始化工单表即可
-            pass
-
-
-
+            # a) 初始化工单表
+            self._admin_service.create_handoffs()
+            # b) 修改当前会话模式(会话没有变)
+            conversation.mode=ConversationMode.QUEUED
 
 
