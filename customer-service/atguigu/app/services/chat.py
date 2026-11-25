@@ -123,7 +123,7 @@ class ChatService:
         stmt = select(Conversation).where(
             Conversation.user_id == user_id,
             Conversation.mode != ConversationMode.CLOSED
-        )
+        ).with_for_update()   # 对当前活跃会话的一条记录加了写锁
 
         # 1.2 执行SQL语句
         conversation = await self._session.scalar(stmt)  # Conversation对象 or None对象
@@ -192,7 +192,7 @@ class ChatService:
 
         # 2. 查询当前轮次对应的会话对象
         conversation = await self._session.scalar(
-            select(Conversation).where(Conversation.id == claimed_turn.conversation_id))
+            select(Conversation).where(Conversation.id == claimed_turn.conversation_id).with_for_update())
 
         # 3. 修改领取到轮次的信息
         # 3.1 修改轮次的状态
@@ -301,7 +301,7 @@ class ChatService:
 
         # 1. 根据当前轮次查询对应的会话
         conversation = await  self._session.scalar(
-            select(Conversation).where(Conversation.id == claimed_turn.conversation_id))
+            select(Conversation).where(Conversation.id == claimed_turn.conversation_id).with_for_update())
 
         # 2. 用户插话(维度一:这个轮次是否能用)
         if claimed_turn.snapshot_message_id != await self._get_latest_user_message_id(str(conversation.id)):

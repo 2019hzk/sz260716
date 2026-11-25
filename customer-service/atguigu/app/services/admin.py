@@ -112,7 +112,7 @@ class AdminService:
 
         # 2. 查询会话对象
         conversation = await  self._session.scalar(
-            select(Conversation).where(Conversation.id == handoff.conversation_id))
+            select(Conversation).where(Conversation.id == handoff.conversation_id).with_for_update())
 
         # 3. 返回
         return handoff, conversation
