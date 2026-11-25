@@ -72,7 +72,8 @@ class AdminService:
                              handoff_id: str,
                              staff_id: str):
         """
-        职责：客服staff_id接收工单handoff_id
+
+        职责：客服staff_id接收工单handoff_id以及给用户端 提示开场语
         :param handoff_id:  工单
         :param staff_id:    客服的ID
         :return:
@@ -93,7 +94,10 @@ class AdminService:
         # 3.3 修改会话模式
         conversation.mode = ConversationMode.HUMAN  # 并发覆盖写(不会出现问题)
 
-        # 4. 提交
+        # 4. 调用保存人工的回复方法
+        self.save_human_reply(conversation, reply_text=f"客服 {staff_id} 已经接入工单，请问您有什么需要帮助的?")  # 开场白
+
+        # 5. 提交
         await self._session.commit()
 
     async def _get_handoff_conversation(self, handoff_id: str) -> tuple[Handoff, Conversation]:
@@ -158,7 +162,7 @@ class AdminService:
 
     async def resolve_handoff(self, handoff_id: str):
         """
-        职责：客服关闭工单
+        职责：客服关闭工单以及给用户端结束语
         :param handoff_id:
         :return:
         """
@@ -172,5 +176,9 @@ class AdminService:
         # 3. 修改会话模式
         conversation.mode = ConversationMode.AI  # 切回AI会话模式
 
-        # 4. 提交
+        # 4. 调用保存人工的回复方法
+        self.save_human_reply(conversation,
+                              reply_text=f"人工客服{handoff.staff_id}已经结束，稍后由AI 继续为你服务。")  # 结束语
+
+        # 5. 提交
         await self._session.commit()
