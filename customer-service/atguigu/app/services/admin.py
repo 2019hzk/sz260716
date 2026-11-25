@@ -1,8 +1,10 @@
+from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from atguigu.app.models.enums import HandoffStatus
-from atguigu.app.models.models import Handoff, Conversation
+from atguigu.app.models.models import Handoff, Conversation, Message
 
 
 class AdminService:
@@ -44,5 +46,20 @@ class AdminService:
         # 2. 执行SQL语句
         return list((await self._session.scalars(stmt)).all())
 
+    async def get_messages(self, handoff_id: str) -> dict[str, Any]:
+        """
+        职责： 查询指定工单对应的会话下所有的消息
+        :param handoff_id:
+        :return:
+        """
 
+        # 1. 定义查询SQL语句
+        stmt = select(Message).join(Handoff, Handoff.conversation_id == Message.conversation_id).where(
+            Handoff.id == handoff_id
+        ).order_by(Message.created_at)
 
+        # 2. 执行SQL语句
+        messages = (await self._session.scalars(stmt)).all()
+
+        # 3. 返回消息
+        return {"messages": messages}
