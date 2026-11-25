@@ -1,4 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from atguigu.app.models.enums import HandoffStatus
 from atguigu.app.models.models import Handoff, Conversation
@@ -29,3 +30,19 @@ class AdminService:
 
         # 2. 保存
         self._session.add(handoffs)
+
+    async def get_handoffs(self) -> list[Handoff]:
+        """
+        职责：查询所有处于有效状态的工单列表
+        :return:
+        """
+        # 1. 定义查询SQL语句
+        stmt = select(Handoff).where(Handoff.status.in_([HandoffStatus.WAITING, HandoffStatus.ACTIVE])).order_by(
+            Handoff.created_at
+        )
+
+        # 2. 执行SQL语句
+        return list((await self._session.scalars(stmt)).all())
+
+
+

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from atguigu.app.routers import hello, chat
+from atguigu.app.routers import chat, admin
 from atguigu.common.settings import get_settings
 
 app = FastAPI(description="应用的FastAPI实例对象")
@@ -13,6 +13,5 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
-
-app.include_router(hello.router)
 app.include_router(chat.router)
+app.include_router(admin.router)

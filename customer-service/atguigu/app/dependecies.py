@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, Header
 
 from atguigu.app.schemas import CurrentUser
+from atguigu.app.services.admin import AdminService
 from atguigu.app.services.auth import authorized_user
 from atguigu.app.services.chat import ChatService
 from atguigu.infrastructure.db import get_async_session
@@ -19,11 +20,19 @@ def get_chat_service(session: SessionDep) -> ChatService:
     return ChatService(session=session)
 
 
-ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
+def get_admin_service(session: SessionDep):
+    return AdminService(session=session)
 
 
 def required_user_role(authorization: Annotated[str | None, Header()]) -> CurrentUser:
     return authorized_user(authorization, "user")
 
 
+def required_staff_role(authorization: Annotated[str | None, Header()]) -> CurrentUser:
+    return authorized_user(authorization, "staff")
+
+
 UserRoleDep = Annotated[CurrentUser, Depends(required_user_role)]
+StaffRoleDep = Annotated[CurrentUser, Depends(required_staff_role)]
+AdminServiceDep = Annotated[AdminService, Depends(get_admin_service)]
+ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
