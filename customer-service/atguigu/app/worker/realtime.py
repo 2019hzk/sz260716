@@ -68,12 +68,12 @@ class RealtimeWorker:
             return True
 
 
-async def main():
-    realtime_worker = RealtimeWorker()
-
-    await  realtime_worker.start()
-
-
-if __name__ == '__main__':
-    # asyncio.run(main())
-    run_async(main())
+# async def main():
+#     realtime_worker = RealtimeWorker()
+#
+#     await  realtime_worker.start()
+#
+#
+# if __name__ == '__main__':
+#     # asyncio.run(main())
+#     run_async(main())
