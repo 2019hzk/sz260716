@@ -8,8 +8,9 @@ import json
 import logging
 from redis import RedisError
 from atguigu.app.services.realtime import RealTimeService
+from atguigu.common.event_loop import run_async
 from atguigu.common.settings import get_settings
-from atguigu.infrastructure.db import async_sessionmaker
+from atguigu.infrastructure.db import AsyncSessionFactory
 from atguigu.infrastructure.redis_client import redis_client
 
 logging.basicConfig(level=logging.INFO)
@@ -21,7 +22,7 @@ class RealtimeWorker:
 
     def __init__(self):
         self._settings = get_settings()
-        self._session_factory = async_sessionmaker
+        self._session_factory = AsyncSessionFactory
         self._redis_client = redis_client
 
     async def start(self):
@@ -65,3 +66,14 @@ class RealtimeWorker:
 
             # 5. 返回True
             return True
+
+
+async def main():
+    realtime_worker = RealtimeWorker()
+
+    await  realtime_worker.start()
+
+
+if __name__ == '__main__':
+    # asyncio.run(main())
+    run_async(main())
