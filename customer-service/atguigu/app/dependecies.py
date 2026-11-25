@@ -32,7 +32,12 @@ def required_staff_role(authorization: Annotated[str | None, Header()]) -> Curre
     return authorized_user(authorization, "staff")
 
 
+def required_admin_role(authorization: Annotated[str | None, Header()]) -> CurrentUser:
+    return authorized_user(authorization, "admin")
+
+
 UserRoleDep = Annotated[CurrentUser, Depends(required_user_role)]
 StaffRoleDep = Annotated[CurrentUser, Depends(required_staff_role)]
+AdminRoleDep = Annotated[CurrentUser, Depends(required_admin_role)]
 AdminServiceDep = Annotated[AdminService, Depends(get_admin_service)]
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]

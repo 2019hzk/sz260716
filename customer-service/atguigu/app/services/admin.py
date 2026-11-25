@@ -1,7 +1,7 @@
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from atguigu.app.models.enums import HandoffStatus, ConversationMode, MessageRole
 from atguigu.app.models.models import Handoff, Conversation, Message
@@ -182,3 +182,27 @@ class AdminService:
 
         # 5. 提交
         await self._session.commit()
+
+    async def get_metric(self) -> dict[str, Any]:
+        """
+        职责：返回customer-service观测的指标项
+        :return:
+        """
+        return {
+
+            "conversations": await  self._get_count(Conversation.id),  # 会话总数（不会区分哪一种会话模式）
+            "handoffs": await self._get_count(Handoff.id),  # 工单总数
+            "queued": await self._get_count(Conversation.id, Conversation.mode == ConversationMode.QUEUED),
+            # 查询会话模式是排队中的会话数
+            "human": await self._get_count(Conversation.id, Conversation.mode == ConversationMode.HUMAN)
+            # 查询会话模式是人工服务中的会话数
+
+        }
+
+    async def _get_count(self, col, *condition_expr1) -> int:
+        """
+        :param col:
+        :param condition_expr1:
+        :return:
+        """
+        return await self._session.scalar(select(func.count(col)).where(*condition_expr1))
