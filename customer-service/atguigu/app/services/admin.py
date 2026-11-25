@@ -3,14 +3,18 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from atguigu.app.models.enums import HandoffStatus, ConversationMode
+from atguigu.app.models.enums import HandoffStatus, ConversationMode, MessageRole
 from atguigu.app.models.models import Handoff, Conversation, Message
+from atguigu.app.schemas import ReplyRequest
+from atguigu.app.services.realtime import RealTimeService
+from atguigu.common.utils import get_uid, get_utcnow
 
 
 class AdminService:
 
     def __init__(self, session: AsyncSession):
         self._session = session
+        self._realtime_service = RealTimeService(session)
 
     def create_handoffs(self,
                         conversation: Conversation,
@@ -99,7 +103,8 @@ class AdminService:
         :return:
         """
         # 1. 查询工单对象
-        handoff = await self._session.scalar(select(Handoff).where(Handoff.id == handoff_id).with_for_update())    # 为满足条件的记录添加上一把写锁。写锁特点：写写互斥。
+        handoff = await self._session.scalar(
+            select(Handoff).where(Handoff.id == handoff_id).with_for_update())  # 为满足条件的记录添加上一把写锁。写锁特点：写写互斥。
 
         # 2. 查询会话对象
         conversation = await  self._session.scalar(
@@ -107,3 +112,46 @@ class AdminService:
 
         # 3. 返回
         return handoff, conversation
+
+    async def reply_message(self,
+                            handoff_id: str,
+                            payload: ReplyRequest):
+        """
+        职责： 客服回复用户的工单信息（相互聊天）
+        :param handoff_id:
+        :param payload:
+        :return:
+        """
+
+        # 1. 查询工单对应的会话
+        _, conversation = self._get_handoff_conversation(handoff_id)
+
+        # 2. 保存客服回复到消息表(对内)以及事实事件表(对外)
+        self.save_human_reply(
+            conversation,
+            reply_text=payload.text  # 客服的回复内容
+        )
+
+        # 3. 统一commit
+        await self._session.commit()
+
+    def save_human_reply(self,
+                         conversation: Conversation,
+                         *,
+                         reply_text: str
+                         ):
+        # 1. 构建message对象
+        message = Message(
+            message_id=get_uid("human"),
+            conversation_id=conversation.id,
+            role=MessageRole.HUMAN,
+            message_type="text",
+            content={"text": reply_text}
+        )
+
+        self._session.add(message)
+
+        conversation.last_active_at = get_utcnow()
+
+        # 2. 调用realtime_service的add_event方法(客服侧只需要通知用户端即可)
+        self._realtime_service.add_events(message, conversation, notify_user=True)
