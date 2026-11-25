@@ -19,3 +19,11 @@ async def get_messages_endpoint(handoff_id: str,
                                 _: StaffRoleDep  # 只做校验
                                 ):
     return await service.get_messages(handoff_id)
+
+
+@router.get("/{handoff_id}/accept", description="客服接收指定工单")
+async def accept_handoff_endpoint(handoff_id: str,
+                                  service: AdminServiceDep,
+                                  staff_role: StaffRoleDep
+                                  ):
+    await service.accept_handoff(handoff_id, staff_role.user_id)
