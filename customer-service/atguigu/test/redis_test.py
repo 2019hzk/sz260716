@@ -6,7 +6,7 @@ CHANNEL = "test_channel"
 
 async def subscriber():
     """订阅者：负责接收消息"""
-    r = redis.Redis(host="192.168.200.158", port=6379, decode_responses=True)   # 获取redis客户端
+    r = redis.Redis(host="192.168.200.158", port=6379, decode_responses=False)   # 获取redis客户端
     pubsub = r.pubsub()   # 获取pubsub对象
     await pubsub.subscribe(CHANNEL)   # 注册测试通道
     print(f"【订阅者】已成功订阅频道: {CHANNEL}")
@@ -27,7 +27,7 @@ async def subscriber():
 
 async def publisher():
     """发布者：负责发送消息"""
-    r = redis.Redis(host="192.168.200.158", port=6379, decode_responses=True)
+    r = redis.Redis(host="192.168.200.158", port=6379, decode_responses=False)
     await asyncio.sleep(1)  # 等待订阅者就绪
 
     for i in range(1, 4):
