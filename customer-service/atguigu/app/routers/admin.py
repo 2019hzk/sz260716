@@ -37,3 +37,11 @@ async def reply_message_endpoint(handoff_id: str,
                                  _: StaffRoleDep  # 只做校验
                                  ):
     await service.reply_message(handoff_id, payload)
+
+
+@router.post("/{handoff_id}/resolve", description="客服关闭工单，结束服务")
+async def resolve_handoff_endpoint(handoff_id: str,
+                                   service: AdminServiceDep,
+                                   _: StaffRoleDep  # 只做校验
+                                   ):
+    await service.resolve_handoff(handoff_id)

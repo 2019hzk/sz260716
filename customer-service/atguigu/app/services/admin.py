@@ -124,7 +124,7 @@ class AdminService:
         """
 
         # 1. 查询工单对应的会话
-        _, conversation = self._get_handoff_conversation(handoff_id)
+        _, conversation = await self._get_handoff_conversation(handoff_id)
 
         # 2. 保存客服回复到消息表(对内)以及事实事件表(对外)
         self.save_human_reply(
@@ -155,3 +155,22 @@ class AdminService:
 
         # 2. 调用realtime_service的add_event方法(客服侧只需要通知用户端即可)
         self._realtime_service.add_events(message, conversation, notify_user=True)
+
+    async def resolve_handoff(self, handoff_id: str):
+        """
+        职责：客服关闭工单
+        :param handoff_id:
+        :return:
+        """
+
+        # 1. 查询工单以及会话
+        handoff, conversation = await self._get_handoff_conversation(handoff_id)
+
+        # 2. 修改工单状态
+        handoff.status = HandoffStatus.RESOLVE  # 关闭
+
+        # 3. 修改会话模式
+        conversation.mode = ConversationMode.AI  # 切回AI会话模式
+
+        # 4. 提交
+        await self._session.commit()
