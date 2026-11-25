@@ -26,4 +26,4 @@ async def accept_handoff_endpoint(handoff_id: str,
                                   service: AdminServiceDep,
                                   staff_role: StaffRoleDep
                                   ):
-    await service.accept_handoff(handoff_id, staff_role.user_id)
+    await service.accept_han斌比doff(handoff_id, staff_role.user_id)

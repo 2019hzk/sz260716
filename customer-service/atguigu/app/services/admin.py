@@ -74,16 +74,22 @@ class AdminService:
         :return:
         """
         # 1.根据工单ID 查询工单信息以及会话信息
-        handoff, conversation = await self._get_handoff_conversation(handoff_id)
+        handoff, conversation = await self._get_handoff_conversation(handoff_id)  # 并发读(不会出现问题)
 
-        # 2. 修改工单状态以及会话模式
-        # 2.1 修改工单状态
-        handoff.status = HandoffStatus.ACTIVE
-        # 2.2 更新工单客服ID
-        handoff.staff_id = staff_id
-        # 2.3 修改会话模式
-        conversation.mode = ConversationMode.HUMAN
-        # 3. 提交
+        # 2. 判断工单是否已经被客服接入
+        if handoff.status == HandoffStatus.ACTIVE:
+            # 某一个客服已经结果该工单，另外一个客服无需修改  （必须满足 先接单客服做完，提交，另外一个客服在进来，能防住）
+            return
+
+        # 3. 修改工单状态以及会话模式
+        # 3.1 修改工单状态
+        handoff.status = HandoffStatus.ACTIVE  # 并发覆盖写(不会出现问题)
+        # 3.2 更新工单客服ID
+        handoff.staff_id = staff_id  # 并发修改(会出现问题)
+        # 3.3 修改会话模式
+        conversation.mode = ConversationMode.HUMAN  # 并发覆盖写(不会出现问题)
+
+        # 4. 提交
         await self._session.commit()
 
     async def _get_handoff_conversation(self, handoff_id: str) -> tuple[Handoff, Conversation]:
@@ -93,7 +99,7 @@ class AdminService:
         :return:
         """
         # 1. 查询工单对象
-        handoff = await self._session.scalar(select(Handoff).where(Handoff.id == handoff_id))
+        handoff = await self._session.scalar(select(Handoff).where(Handoff.id == handoff_id).with_for_update())    # 为满足条件的记录添加上一把写锁。写锁特点：写写互斥。
 
         # 2. 查询会话对象
         conversation = await  self._session.scalar(
