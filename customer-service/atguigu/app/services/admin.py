@@ -2,6 +2,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from fastapi import  HTTPException
 
 from atguigu.app.models.enums import HandoffStatus, ConversationMode, MessageRole
 from atguigu.app.models.models import Handoff, Conversation, Message
@@ -84,7 +85,7 @@ class AdminService:
         # 2. 判断工单是否已经被客服接入
         if handoff.status == HandoffStatus.ACTIVE:
             # 某一个客服已经结果该工单，另外一个客服无需修改  （必须满足 先接单客服做完，提交，另外一个客服在进来，能防住）
-            return
+            raise HTTPException(status_code=409, detail="该工单已经被接入，请勿重试抢单")
 
         # 3. 修改工单状态以及会话模式
         # 3.1 修改工单状态

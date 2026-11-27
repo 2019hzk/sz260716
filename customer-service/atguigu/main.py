@@ -25,6 +25,9 @@ async def start_async_uvicorn():
 
 
 if __name__ == '__main__':
+    import  logging
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     run_async(start_async_uvicorn())
 
     # uvicorn.run(app="atguigu.app.app:app", host=settings.api_host, port=settings.api_port)  # 底层使用asyncio.run(process_chat_endpoint())

@@ -104,8 +104,10 @@ class ChatService:
         else:
             # 会话模式要不是QUEUED[等待人工客服]/HUMAN【人工客服服务中】
             # 交给人工客服处理---链路很长(点击看工单、接入工单、回复工单、结束工单)
-            # 发送一个能够让前端调用查询工单项的接口信号。（为了后续真正处理工单的条件）ws
-
+            # 发送一个能够让前端调用查询工单对应会话下消息列表。
+            # QUEUED模式下，客服端判断客服是否点击了工单，如果客服没有点击工单，客服端相当于收到事件通知什么都没有做。
+            # QUEUED模式下，客服端判断客服是否点击了工单，如果客服点击工单， 客服端收到事件通知,主动调用获取该点击工单对应的会话下消息列表查询接口。
+            # HUMAN模式下， 客服端收到事件通知,主动调用获取该点击工单对应的会话下消息列表查询接口。
             self._realtime_service.add_events(message, conversation, notify_staff=True)
 
         # 5. 统一提交
@@ -123,7 +125,7 @@ class ChatService:
         stmt = select(Conversation).where(
             Conversation.user_id == user_id,
             Conversation.mode != ConversationMode.CLOSED
-        ).with_for_update()   # 对当前活跃会话的一条记录加了写锁
+        ).with_for_update()  # 对当前活跃会话的一条记录加了写锁
 
         # 1.2 执行SQL语句
         conversation = await self._session.scalar(stmt)  # Conversation对象 or None对象
@@ -337,7 +339,6 @@ class ChatService:
             # 3.3) 结束
             return
 
-
         claimed_turn.status = TurnStatus.COMPLETED
         # 4. 保存AI Service推理后的结果(转人工请求，业务回复)
         # 4.1 转人工的请求
@@ -373,7 +374,7 @@ class ChatService:
             conversation_id=conversation.id,
             role=MessageRole.AI,
             message_type="text",
-            content=ai_result
+            content=ai_result   # {}
         )
         self._session.add(message)
 

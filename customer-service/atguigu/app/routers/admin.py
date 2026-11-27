@@ -21,6 +21,15 @@ async def get_messages_endpoint(handoff_id: str,
                                 service: AdminServiceDep,
                                 _: StaffRoleDep  # 只做校验
                                 ):
+    """
+    客服收到的前端通知的信号调用。
+    客服没有收到前端通知，但是自己调用accept之后调用的。
+    :param handoff_id:
+    :param service:
+    :param _:
+    :return:
+    """
+
     return await service.get_messages(handoff_id)
 
 
