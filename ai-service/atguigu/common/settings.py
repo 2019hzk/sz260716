@@ -27,12 +27,19 @@ class Settings(BaseSettings):
         "deepseek",
         description="大模型提供商类型",
     )
-    llm_model: str = Field("deepseek-chat", description="大模型名称")
-    llm_api_key: str = Field("", description="大模型 API Key")
-    llm_base_url: str = Field("https://api.deepseek.com", description="大模型接口基础地址")
-    llm_timeout_seconds: float = Field(30.0, description="调用大模型的超时秒数")
-    agent_max_attempts: int = Field(2, description="Agent 推理与护栏校验最大尝试次数")
+    llm_model: str = Field("deepseek-chat", description="主模型（DeepSeek）名称")
+    llm_api_key: str = Field("", description="主模型 API Key")
+    llm_base_url: str = Field("https://api.deepseek.com", description="主模型接口基础地址")
+    llm_timeout_seconds: float = Field(15.0, description="单次调用大模型的超时秒数")
+    llm_max_retries: int = Field(0, description="主模型调用失败时的 SDK 内部重试次数（0 表示失败立即回退到备用模型）")
 
+    llm_fallback_model: str = Field("qwen3.8-max-0902", description="备用大模型名称")
+    llm_fallback_max_retries: int = Field(1, description="备用模型调用失败时的 SDK 内部重试次数")
+    llm_fallback_api_key: str = Field("", description="备用大模型 API Key")
+    llm_fallback_base_url: str = Field(
+        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        description="备用大模型接口基础地址（OpenAI 兼容模式）",
+    )
     history_message_limit: int = Field(30, description="注入上下文的最大历史消息条数")
     history_character_budget: int = Field(12000, description="注入上下文的最大历史字符预算")
     prompt_version: str = Field("customer-support-v1", description="当前系统提示词版本号")
