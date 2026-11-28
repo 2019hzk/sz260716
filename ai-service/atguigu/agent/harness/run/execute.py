@@ -1,17 +1,19 @@
 import logging
 import time
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 from typing import Any
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
+from langchain_core.messages import BaseMessage
 
 from atguigu.app.models.enums import AgentTraceStatus
 from atguigu.app.models.models import AgentTrace
 from atguigu.app.schemas import AgentRunRequest
 from atguigu.common.settings import get_settings
+from atguigu.agent.harness.run.context import build_message_context
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class AgentExecute:
@@ -54,7 +56,7 @@ class AgentExecute:
         # 4. 调用Agent(5s)
         start_time = time.perf_counter()
         try:
-            ai_result: dict[str, Any] = self._invoke_agent()
+            ai_result: dict[str, Any] = await self._invoke_agent(payload)
         except Exception as exc:
             logger.exception(f"AI 智能体执行出错，异常原因：%s", str(exc))
             agent_traces.status = AgentTraceStatus.FAILED
@@ -73,3 +75,15 @@ class AgentExecute:
 
         # 6. 返回智能体的结果
         return ai_result
+
+    async def _invoke_agent(self,
+                            payload: AgentRunRequest) -> dict[str, Any]:
+        """
+        计算推理(调用LLM 异步调用)
+        """
+
+        # 1. 构建消息上下文
+        message_context: list[BaseMessage] = build_message_context(payload)
+
+        # 2. Agent推理计算
+        agent_out: dict[str, Any] = await self._agent.ainvoke({"messages": message_context})
