@@ -1,8 +1,10 @@
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from atguigu.agent.agent import create_ai_agent
+from atguigu.agent.harness.run.execute import AgentExecute
 from atguigu.app.schemas import CurrentUser
 from atguigu.common.settings import get_settings
 from atguigu.infrastructure.db import get_async_session
@@ -21,4 +23,11 @@ def require_internal_service(token: Annotated[str | None, Header(alias="X-Intern
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无效的内部访问令牌")
 
 
+def get_agent_executor(session: SessionDep, request: Request) -> AgentExecute:
+
+    return AgentExecute(session, agent=request.state.agent)   # 从共享的fastapi实例对象的state容器获取到的。
+
+
 UserDep = Annotated[CurrentUser, Depends(require_user)]
+
+AgentExecuteDep = Annotated[AgentExecute, Depends(get_agent_executor)]

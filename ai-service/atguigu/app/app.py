@@ -3,15 +3,20 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from atguigu.agent.agent import create_ai_agent
 from atguigu.app.routers import run
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def lifespan(app: FastAPI):
+    # 基于应用级别初始化了一个Agent对象，各个路由请求都能够使用到。
+    app.state.agent = create_ai_agent()  # type:ignore
+    yield  # 处理路由请求
 
 
-app = FastAPI(title="Ecommerce AI Service")
+app = FastAPI(title="Ecommerce AI Service", lifespan=lifespan)
 app.include_router(run.router)
 
 app.add_middleware(
