@@ -5,8 +5,8 @@
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelFallbackMiddleware
-
 from atguigu.agent.llm.adapter import get_deepseek_model_client, get_qwen_model_client
+
 
 def create_ai_agent():
     """

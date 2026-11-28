@@ -2,6 +2,8 @@ import logging
 import time
 
 from typing import Any
+
+from langchain_core.callbacks import UsageMetadataCallbackHandler
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 from langchain_core.messages import BaseMessage
@@ -56,7 +58,7 @@ class AgentExecute:
         # 4. 调用Agent(5s)
         start_time = time.perf_counter()
         try:
-            ai_result: dict[str, Any] = await self._invoke_agent(payload)
+            ai_result: dict[str, Any] = await self._invoke_agent(payload, agent_traces)
         except Exception as exc:
             logger.exception(f"AI 智能体执行出错，异常原因：%s", str(exc))
             agent_traces.status = AgentTraceStatus.FAILED
@@ -77,13 +79,38 @@ class AgentExecute:
         return ai_result
 
     async def _invoke_agent(self,
-                            payload: AgentRunRequest) -> dict[str, Any]:
+                            payload: AgentRunRequest,
+                            agent_traces: AgentTrace
+                            ) -> dict[str, Any]:
         """
-        计算推理(调用LLM 异步调用)
+        职责：计算推理(调用LLM 异步调用)
+        """
+        # 1. 实例化回调处理器
+        callback_handler = UsageMetadataCallbackHandler()
+        try:
+            # 1. 构建消息上下文
+            message_context: list[BaseMessage] = build_message_context(payload)
+
+            # 2. Agent推理计算
+            agent_out: dict[str, Any] = await self._agent.ainvoke(
+                {"messages": message_context},
+                config={"callbacks": [callback_handler]})
+
+            return agent_out   # finally一定会在方法退出之前执行
+        # 3. 收集token用量
+        finally:
+            input_tokens, output_tokens = self._summary_tokens(callback_handler)
+            agent_traces.input_tokens = input_tokens
+            agent_traces.output_tokens = output_tokens
+
+    def _summary_tokens(self, callback_handler: UsageMetadataCallbackHandler) -> tuple[int, int]:
+        """
+        职责： 获取Agent推理任务时用到所有模型的token用量
         """
 
-        # 1. 构建消息上下文
-        message_context: list[BaseMessage] = build_message_context(payload)
+        all_model_tokens = list(callback_handler.usage_metadata.values())
 
-        # 2. Agent推理计算
-        agent_out: dict[str, Any] = await self._agent.ainvoke({"messages": message_context})
+        input_tokens = sum(model_token.get('input_tokens', 0) for model_token in all_model_tokens)
+        output_tokens = sum(model_token.get('output_tokens', 0) for model_token in all_model_tokens)
+
+        return input_tokens, output_tokens
